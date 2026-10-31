@@ -5,6 +5,7 @@ const express = require("express");
 const connectDB = require("./config/db");
 const productRoutes = require("./routes/productRoutes");
 const planRoutes = require("./routes/planRoutes");
+const quotationRoutes = require("./routes/quotationRoutes");
 const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -23,6 +24,7 @@ app.get("/api/test", (req, res) => {
 
 app.use("/api/products", productRoutes);
 app.use("/api/plans", planRoutes);
+app.use("/api/quotations", quotationRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
