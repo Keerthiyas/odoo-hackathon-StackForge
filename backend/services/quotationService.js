@@ -27,6 +27,13 @@ const quotationStatuses = ["draft", "sent", "accepted", "rejected"];
 const createError = (statusCode, message, validationErrors) =>
   Object.assign(new Error(message), { statusCode, validationErrors });
 
+const getQuotationAccessFilter = (user) => {
+  if (user.role === "admin") return {};
+  if (user.role === "staff") return { createdBy: user._id };
+  if (user.role === "customer") return { customer: user._id };
+  throw createError(403, "You do not have permission to access quotations");
+};
+
 const validateQuotation = (body, partial = false) => {
   const errors = [];
   const quotation = {};
@@ -148,31 +155,44 @@ const validateReferences = async (quotation) => {
   }
 };
 
-const createQuotation = async (body) => {
-  const quotation = getValidatedQuotation(body);
+const createQuotation = async (body, user) => {
+  const quotation = getValidatedQuotation({
+    ...(body && typeof body === "object" && !Array.isArray(body) ? body : {}),
+    createdBy: user._id,
+  });
   await validateReferences(quotation);
   return Quotation.create(quotation);
 };
 
-const getQuotations = async () =>
-  Quotation.find().sort({ createdAt: -1 });
+const getQuotations = async (user) =>
+  Quotation.find(getQuotationAccessFilter(user)).sort({ createdAt: -1 });
 
-const getQuotation = async (id) => {
-  const quotation = await Quotation.findById(id);
+const getQuotation = async (id, user) => {
+  const quotation = await Quotation.findOne({
+    _id: id,
+    ...getQuotationAccessFilter(user),
+  });
   if (!quotation) {
     throw createError(404, "Quotation not found");
   }
   return quotation;
 };
 
-const updateQuotation = async (id, body) => {
+const updateQuotation = async (id, body, user) => {
+  if (body && Object.hasOwn(body, "createdBy")) {
+    throw createError(400, "createdBy cannot be changed");
+  }
   const quotationData = getValidatedQuotation(body, true);
   if (quotationData.status === "accepted") {
     throw createError(409, "Use the quotation acceptance endpoint to accept a quotation");
   }
   await validateReferences(quotationData);
 
-  const currentQuotation = await Quotation.findById(id);
+  const accessFilter = getQuotationAccessFilter(user);
+  const currentQuotation = await Quotation.findOne({
+    _id: id,
+    ...accessFilter,
+  });
   if (!currentQuotation) {
     throw createError(404, "Quotation not found");
   }
@@ -181,12 +201,15 @@ const updateQuotation = async (id, body) => {
   }
 
   const quotation = await Quotation.findOneAndUpdate(
-    { _id: id, status: { $ne: "accepted" } },
+    { _id: id, ...accessFilter, status: { $ne: "accepted" } },
     quotationData,
     { new: true, runValidators: true },
   );
   if (!quotation) {
-    const existingQuotation = await Quotation.findById(id);
+    const existingQuotation = await Quotation.findOne({
+      _id: id,
+      ...accessFilter,
+    });
     if (!existingQuotation) {
       throw createError(404, "Quotation not found");
     }
@@ -195,7 +218,7 @@ const updateQuotation = async (id, body) => {
   return quotation;
 };
 
-const updateQuotationStatus = async (id, body) => {
+const updateQuotationStatus = async (id, body, user) => {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw createError(400, "Request body must be a JSON object");
   }
@@ -213,8 +236,15 @@ const updateQuotationStatus = async (id, body) => {
   if (body.status === "accepted") {
     throw createError(409, "Use the quotation acceptance endpoint to accept a quotation");
   }
+  if (user.role === "customer" && body.status !== "rejected") {
+    throw createError(403, "Customers may only reject their own quotations");
+  }
 
-  const currentQuotation = await Quotation.findById(id);
+  const accessFilter = getQuotationAccessFilter(user);
+  const currentQuotation = await Quotation.findOne({
+    _id: id,
+    ...accessFilter,
+  });
   if (!currentQuotation) {
     throw createError(404, "Quotation not found");
   }
@@ -222,12 +252,15 @@ const updateQuotationStatus = async (id, body) => {
     throw createError(409, "Accepted quotation status cannot be changed");
   }
   const quotation = await Quotation.findOneAndUpdate(
-    { _id: id, status: { $ne: "accepted" } },
+    { _id: id, ...accessFilter, status: { $ne: "accepted" } },
     { status: body.status },
     { new: true, runValidators: true },
   );
   if (!quotation) {
-    const existingQuotation = await Quotation.findById(id);
+    const existingQuotation = await Quotation.findOne({
+      _id: id,
+      ...accessFilter,
+    });
     if (!existingQuotation) {
       throw createError(404, "Quotation not found");
     }
@@ -236,17 +269,30 @@ const updateQuotationStatus = async (id, body) => {
   return quotation;
 };
 
-const deleteQuotation = async (id) => {
+const deleteQuotation = async (id, user) => {
+  const accessFilter = getQuotationAccessFilter(user);
+  const visibleQuotation = await Quotation.findOne({
+    _id: id,
+    ...accessFilter,
+  });
+  if (!visibleQuotation) {
+    throw createError(404, "Quotation not found");
+  }
+
   const hasSubscription = await Subscription.exists({ quotation: id });
   if (hasSubscription) {
     throw createError(409, "Cannot delete a quotation with an associated subscription");
   }
   const quotation = await Quotation.findOneAndDelete({
     _id: id,
+    ...accessFilter,
     status: { $ne: "accepted" },
   });
   if (!quotation) {
-    const existingQuotation = await Quotation.findById(id);
+    const existingQuotation = await Quotation.findOne({
+      _id: id,
+      ...accessFilter,
+    });
     if (existingQuotation) {
       throw createError(409, "Accepted quotations cannot be deleted");
     }

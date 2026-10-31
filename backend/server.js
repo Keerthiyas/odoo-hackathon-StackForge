@@ -1,8 +1,13 @@
-require("dotenv").config();
+const path = require("path");
+
+require("dotenv").config({
+  path: [path.join(__dirname, ".env.local"), path.join(__dirname, ".env")],
+});
 
 const cors = require("cors");
 const express = require("express");
 const connectDB = require("./config/db");
+const authRoutes = require("./routes/authRoutes");
 const productRoutes = require("./routes/productRoutes");
 const planRoutes = require("./routes/planRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
@@ -25,6 +30,7 @@ app.get("/api/test", (req, res) => {
   res.status(200).json({ message: "StackForge routes are working" });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/quotations", quotationRoutes);

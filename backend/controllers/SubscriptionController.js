@@ -11,7 +11,7 @@ const acceptQuotation = async (req, res, next) => {
 
 const getSubscriptions = async (req, res, next) => {
   try {
-    const subscriptions = await subscriptionService.getSubscriptions();
+    const subscriptions = await subscriptionService.getSubscriptions(req.user);
     return res.status(200).json(subscriptions);
   } catch (error) {
     return next(error);
@@ -20,7 +20,10 @@ const getSubscriptions = async (req, res, next) => {
 
 const getSubscription = async (req, res, next) => {
   try {
-    const subscription = await subscriptionService.getSubscription(req.params.id);
+    const subscription = await subscriptionService.getSubscription(
+      req.params.id,
+      req.user,
+    );
     return res.status(200).json(subscription);
   } catch (error) {
     return next(error);
@@ -32,6 +35,7 @@ const updateSubscriptionStatus = async (req, res, next) => {
     const subscription = await subscriptionService.updateSubscriptionStatus(
       req.params.id,
       req.body,
+      req.user,
     );
     return res.status(200).json(subscription);
   } catch (error) {

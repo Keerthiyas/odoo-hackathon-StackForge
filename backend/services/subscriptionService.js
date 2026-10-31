@@ -7,6 +7,41 @@ const subscriptionStatuses = ["active", "paused", "closed"];
 const createError = (statusCode, message) =>
   Object.assign(new Error(message), { statusCode });
 
+const ensureQuotationAccess = async (quotation, user) => {
+  if (user.role === "admin") return;
+  if (
+    user.role === "customer" &&
+    String(quotation.customer) === String(user._id)
+  ) {
+    return;
+  }
+  if (
+    user.role === "staff" &&
+    String(quotation.createdBy) === String(user._id)
+  ) {
+    return;
+  }
+  throw createError(404, "Quotation not found");
+};
+
+const ensureSubscriptionAccess = async (subscription, user) => {
+  if (
+    user.role === "admin" ||
+    (user.role === "customer" &&
+      String(subscription.customer) === String(user._id))
+  ) {
+    return;
+  }
+  if (user.role === "staff") {
+    const managedQuotation = await Quotation.exists({
+      _id: subscription.quotation,
+      createdBy: user._id,
+    });
+    if (managedQuotation) return;
+  }
+  throw createError(404, "Subscription not found");
+};
+
 const getNextBillingDate = (startDate, billingCycle) => {
   const nextBillingDate = new Date(startDate);
   const dayOfMonth = nextBillingDate.getDate();
@@ -34,11 +69,12 @@ const getNextBillingDate = (startDate, billingCycle) => {
   throw createError(400, "The quotation plan has an unsupported billing cycle");
 };
 
-const acceptQuotation = async (quotationId) => {
+const acceptQuotation = async (quotationId, user) => {
   const quotation = await Quotation.findById(quotationId);
   if (!quotation) {
     throw createError(404, "Quotation not found");
   }
+  await ensureQuotationAccess(quotation, user);
 
   if (quotation.status === "accepted") {
     throw createError(409, "Quotation has already been accepted");
@@ -107,18 +143,37 @@ const acceptQuotation = async (quotationId) => {
   }
 };
 
-const getSubscriptions = async () =>
-  Subscription.find().sort({ createdAt: -1 });
+const getSubscriptions = async (user) => {
+  if (user.role === "admin") {
+    return Subscription.find().sort({ createdAt: -1 });
+  }
+  if (user.role === "customer") {
+    return Subscription.find({ customer: user._id }).sort({ createdAt: -1 });
+  }
+  if (user.role === "staff") {
+    const managedQuotations = await Quotation.find({
+      createdBy: user._id,
+    }).select("_id");
+    return Subscription.find({
+      quotation: { $in: managedQuotations.map((quotation) => quotation._id) },
+    }).sort({ createdAt: -1 });
+  }
+  throw createError(403, "You do not have permission to view subscriptions");
+};
 
-const getSubscription = async (id) => {
+const getSubscription = async (id, user) => {
   const subscription = await Subscription.findById(id);
   if (!subscription) {
     throw createError(404, "Subscription not found");
   }
+  await ensureSubscriptionAccess(subscription, user);
   return subscription;
 };
 
-const updateSubscriptionStatus = async (id, body) => {
+const updateSubscriptionStatus = async (id, body, user) => {
+  if (!["admin", "staff"].includes(user.role)) {
+    throw createError(403, "Only admins and staff can update subscription status");
+  }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw createError(400, "Request body must be a JSON object");
   }
@@ -134,8 +189,14 @@ const updateSubscriptionStatus = async (id, body) => {
     );
   }
 
+  const existingSubscription = await Subscription.findById(id);
+  if (!existingSubscription) {
+    throw createError(404, "Subscription not found");
+  }
+  await ensureSubscriptionAccess(existingSubscription, user);
+
   const subscription = await Subscription.findByIdAndUpdate(
-    id,
+    existingSubscription._id,
     { $set: { status: body.status } },
     { new: true, runValidators: true },
   );

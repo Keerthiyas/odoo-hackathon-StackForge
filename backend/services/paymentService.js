@@ -77,14 +77,23 @@ const validatePayment = (body) => {
   return { payment, errors };
 };
 
-const createPayment = async (body) => {
+const createPayment = async (body, user) => {
   const { payment, errors } = validatePayment(body);
   if (errors.length > 0) {
     throw createError(400, "Invalid payment data", errors);
   }
+  if (!["admin", "customer"].includes(user.role)) {
+    throw createError(403, "You do not have permission to record payments");
+  }
 
   const invoice = await Invoice.findById(payment.invoice);
   if (!invoice) {
+    throw createError(404, "Invoice not found");
+  }
+  if (
+    user.role === "customer" &&
+    String(invoice.customer) !== String(user._id)
+  ) {
     throw createError(404, "Invoice not found");
   }
   if (invoice.status === "paid") {
@@ -92,6 +101,9 @@ const createPayment = async (body) => {
   }
 
   const paymentStatus = payment.status || "pending";
+  if (user.role === "customer" && paymentStatus !== "pending") {
+    throw createError(403, "Customers may only submit payments as pending");
+  }
   if (paymentStatus === "completed") {
     const completedPayments = await Payment.find({
       invoice: invoice._id,
@@ -148,13 +160,28 @@ const createPayment = async (body) => {
   return createdPayment;
 };
 
-const getPayments = async () => Payment.find().sort({ createdAt: -1 });
+const getPayments = async (user) => {
+  if (user.role === "admin") {
+    return Payment.find().sort({ createdAt: -1 });
+  }
+  if (user.role === "customer") {
+    return Payment.find({ customer: user._id }).sort({ createdAt: -1 });
+  }
+  throw createError(403, "You do not have permission to view payments");
+};
 
-const getPayment = async (id) => {
+const getPayment = async (id, user) => {
   if (!mongoose.isObjectIdOrHexString(id)) {
     throw createError(400, "Invalid payment id");
   }
-  const payment = await Payment.findById(id);
+  if (!["admin", "customer"].includes(user.role)) {
+    throw createError(403, "You do not have permission to view payments");
+  }
+  const filter = user.role === "admin" ? { _id: id } : {
+    _id: id,
+    customer: user._id,
+  };
+  const payment = await Payment.findOne(filter);
   if (!payment) {
     throw createError(404, "Payment not found");
   }

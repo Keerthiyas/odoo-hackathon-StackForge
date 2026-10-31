@@ -3,7 +3,10 @@ const subscriptionService = require("../services/subscriptionService");
 
 const acceptQuotation = async (req, res, next) => {
   try {
-    const result = await subscriptionService.acceptQuotation(req.params.id);
+    const result = await subscriptionService.acceptQuotation(
+      req.params.id,
+      req.user,
+    );
     return res.status(201).json(result);
   } catch (error) {
     return next(error);
@@ -12,7 +15,7 @@ const acceptQuotation = async (req, res, next) => {
 
 const createQuotation = async (req, res, next) => {
   try {
-    const quotation = await quotationService.createQuotation(req.body);
+    const quotation = await quotationService.createQuotation(req.body, req.user);
     return res.status(201).json(quotation);
   } catch (error) {
     return next(error);
@@ -21,7 +24,7 @@ const createQuotation = async (req, res, next) => {
 
 const getQuotations = async (req, res, next) => {
   try {
-    const quotations = await quotationService.getQuotations();
+    const quotations = await quotationService.getQuotations(req.user);
     return res.status(200).json(quotations);
   } catch (error) {
     return next(error);
@@ -30,7 +33,10 @@ const getQuotations = async (req, res, next) => {
 
 const getQuotation = async (req, res, next) => {
   try {
-    const quotation = await quotationService.getQuotation(req.params.id);
+    const quotation = await quotationService.getQuotation(
+      req.params.id,
+      req.user,
+    );
     return res.status(200).json(quotation);
   } catch (error) {
     return next(error);
@@ -42,6 +48,7 @@ const updateQuotation = async (req, res, next) => {
     const quotation = await quotationService.updateQuotation(
       req.params.id,
       req.body,
+      req.user,
     );
     return res.status(200).json(quotation);
   } catch (error) {
@@ -54,6 +61,7 @@ const updateQuotationStatus = async (req, res, next) => {
     const quotation = await quotationService.updateQuotationStatus(
       req.params.id,
       req.body,
+      req.user,
     );
     return res.status(200).json(quotation);
   } catch (error) {
@@ -63,7 +71,7 @@ const updateQuotationStatus = async (req, res, next) => {
 
 const deleteQuotation = async (req, res, next) => {
   try {
-    await quotationService.deleteQuotation(req.params.id);
+    await quotationService.deleteQuotation(req.params.id, req.user);
     return res.status(200).json({ message: "Quotation deleted successfully" });
   } catch (error) {
     return next(error);
