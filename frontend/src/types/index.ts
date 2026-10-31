@@ -1,161 +1,244 @@
-/**
- * MongoDB / Mongoose Database Collection Schemas & Frontend Types
- * Strictly aligned with backend collections: Users, Products, Plans, Subscriptions, Invoices, Payments, Quotations.
- */
+export type UserRole = 
+  | 'super_admin' 
+  | 'finance_manager' 
+  | 'csm' 
+  | 'sales_rep' 
+  | 'auditor';
 
-export type UserRole = 'admin' | 'staff' | 'customer' | 'ADMIN' | 'STAFF' | 'CUSTOMER';
+export type SubscriptionStatus = 
+  | 'active' 
+  | 'past_due' 
+  | 'trialing' 
+  | 'paused' 
+  | 'canceled';
 
-/**
- * Users Collection Schema
- */
-export interface User {
-  _id?: string;
-  id?: string;
+export type BillingCycle = 'monthly' | 'quarterly' | 'annual';
+
+export type HealthScore = 'healthy' | 'neutral' | 'at_risk';
+
+export type InvoiceStatus = 'paid' | 'open' | 'overdue' | 'void' | 'draft';
+
+export interface Plan {
+  id: string;
   name: string;
-  email: string;
-  password?: string;
-  role: UserRole;
-  companyName?: string;
-  avatar?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  code: string;
+  description: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  maxSeats: number;
+  maxApiCalls: number;
+  supportTier: string;
+  features: string[];
+  isPopular?: boolean;
 }
 
-/**
- * Products Collection Schema (Phase 2 Mongoose Schema)
- * Fields: name (req), description (opt), basePrice (req, >= 0), isActive (bool, def true)
- */
+export interface Customer {
+  id: string;
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  tier: string;
+  status: 'active' | 'churn_risk' | 'churned' | 'onboarding';
+  healthScore: HealthScore;
+  healthReason?: string;
+  joinedDate: string;
+  csmName: string;
+  lifetimeValue: number;
+  currentMrr: number;
+  billingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+  paymentMethod: {
+    brand: string;
+    last4: string;
+    expiry: string;
+    type: 'card' | 'ach' | 'sepa';
+  };
+  lifecycleEvents: Array<{
+    id: string;
+    date: string;
+    title: string;
+    description: string;
+    type: 'upgrade' | 'downgrade' | 'payment' | 'note' | 'trial' | 'renewal';
+  }>;
+}
+
+export interface Subscription {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerCompany: string;
+  customerEmail: string;
+  planId: string;
+  planName: string;
+  status: SubscriptionStatus;
+  billingCycle: BillingCycle;
+  amount: number;
+  seats: number;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string;
+  churnReason?: string;
+  discountPercent: number;
+  paymentMethodSummary: string;
+  autoRenew: boolean;
+  createdAt: string;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  customerCompany: string;
+  customerEmail: string;
+  subscriptionId?: string;
+  planName: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate: string;
+  paidAt?: string;
+  lineItems: InvoiceLineItem[];
+  notes?: string;
+}
+
+export interface RevenueMetric {
+  mrr: number;
+  mrrGrowth: number;
+  arr: number;
+  activeSubscriptions: number;
+  netRevenueRetention: number;
+  churnRate: number;
+  arpu: number;
+  monthlyTrends: Array<{
+    month: string;
+    mrr: number;
+    arr: number;
+    newSubscribers: number;
+    churnedSubscribers: number;
+    expansionMrr: number;
+  }>;
+  churnReasons: Array<{
+    reason: string;
+    percentage: number;
+    count: number;
+  }>;
+}
+
+export interface ActivityNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'success' | 'warning' | 'info' | 'error';
+  timestamp: string;
+}
+
+// ==================== PHASE 3 MONGOOSE SCHEMAS ====================
+
+export type QuotationStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
+
 export interface Product {
   _id: string;
   name: string;
-  description?: string;
-  basePrice: number;
-  isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  // Optional client-side convenience helpers
-  plansCount?: number;
-  activeSubscriptions?: number;
-}
-
-export interface CreateProductDTO {
-  name: string;
-  description?: string;
-  basePrice: number;
-  isActive: boolean;
-}
-
-export interface UpdateProductDTO {
-  name?: string;
-  description?: string;
+  code: string;
+  description: string;
+  status: 'active' | 'inactive';
   basePrice?: number;
-  isActive?: boolean;
 }
 
-/**
- * Plans Collection Schema (Phase 2 Mongoose Schema)
- * Fields: product (ObjectId req), name (req), billingCycle ('monthly' | 'yearly'),
- * price (req, >= 0), allowPause (bool), allowRenewal (bool), allowEarlyClose (bool), isActive (bool)
- */
-export type PlanBillingCycle = 'monthly' | 'yearly';
-
-export interface Plan {
+export interface PlanModel {
   _id: string;
-  product: string | { _id: string; name: string };
   name: string;
-  billingCycle: PlanBillingCycle;
-  price: number;
-  allowPause: boolean;
-  allowRenewal: boolean;
-  allowEarlyClose: boolean;
-  isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface CreatePlanDTO {
+  code: string;
   product: string;
-  name: string;
-  billingCycle: PlanBillingCycle;
   price: number;
+  billingCycle: 'monthly' | 'quarterly' | 'annual';
   allowPause: boolean;
-  allowRenewal: boolean;
   allowEarlyClose: boolean;
-  isActive: boolean;
+  allowRenewal: boolean;
+  features?: string[];
+  status: 'active' | 'inactive';
 }
 
-export interface UpdatePlanDTO {
-  product?: string;
-  name?: string;
-  billingCycle?: PlanBillingCycle;
-  price?: number;
-  allowPause?: boolean;
-  allowRenewal?: boolean;
-  allowEarlyClose?: boolean;
-  isActive?: boolean;
+export interface UserModel {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'customer' | 'admin' | 'staff';
+  company?: string;
+  phone?: string;
 }
 
 /**
- * Subscriptions Collection Schema (Phase 3 Mongoose Schema)
- * Fields:
- * customer: ObjectId referencing User (Required)
- * product: ObjectId referencing Product (Required)
- * plan: ObjectId referencing Plan (Required)
- * quotation: ObjectId referencing Quotation (Source quotation)
- * quantity: Number (Required)
- * startDate: Date (Required)
- * nextBillingDate: Date (Required)
- * status: String ('active' | 'paused' | 'closed')
+ * Exact Quotation Schema (MongoDB/Mongoose):
+ * - customer: ObjectId referencing User (Required)
+ * - product: ObjectId referencing Product (Required)
+ * - plan: ObjectId referencing Plan (Required)
+ * - quantity: Number (Required, minimum 1)
+ * - unitPrice: Number (Required)
+ * - totalAmount: Number (Stored snapshot)
+ * - status: String (draft | sent | accepted | rejected)
+ * - validUntil: Date (Optional)
+ * - createdBy: ObjectId referencing User (Staff/Admin)
  */
-export type SubscriptionStatus =
-  | 'active'
-  | 'paused'
-  | 'closed'
-  | 'trialing'
-  | 'past_due'
-  | 'canceled'
-  | 'unpaid'
-  | 'ACTIVE'
-  | 'PAUSED'
-  | 'CLOSED'
-  | 'TRIALING'
-  | 'PAST_DUE'
-  | 'CANCELED'
-  | 'UNPAID';
-
-export interface Subscription {
-  _id?: string;
-  id?: string;
-  subscriptionNumber?: string;
-  customer?: string | User | Customer | { _id: string; id?: string; name: string; email: string; companyName?: string; company?: string };
-  product?: string | Product | { _id: string; name: string; basePrice?: number };
-  plan?: string | Plan | { _id: string; name: string; price: number; billingCycle: PlanBillingCycle; allowPause?: boolean; allowRenewal?: boolean; allowEarlyClose?: boolean };
-  quotation?: string | Quotation | { _id: string; quotationNumber?: string; totalAmount?: number };
-  quantity?: number;
-  startDate?: string;
-  nextBillingDate?: string;
-  status: SubscriptionStatus;
+export interface Quotation {
+  _id: string;
+  quotationNumber?: string;
+  customer: string;
+  product: string;
+  plan: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  status: QuotationStatus;
+  validUntil?: string;
+  createdBy: string;
   createdAt?: string;
   updatedAt?: string;
-
-  // Convenience properties for Dashboard / Legacy compatibility
-  customerId?: string;
-  customerName?: string;
-  customerEmail?: string;
-  productId?: string;
-  productName?: string;
-  planId?: string;
-  planName?: string;
-  billingCycle?: 'monthly' | 'quarterly' | 'annual' | 'yearly';
-  amount?: number;
-  currency?: string;
-  endDate?: string;
-  currentPeriodStart?: string;
-  currentPeriodEnd?: string;
-  autoRenew?: boolean;
 }
 
-export interface CreateSubscriptionDTO {
+export interface PopulatedQuotation extends Omit<Quotation, 'customer' | 'product' | 'plan' | 'createdBy'> {
+  customer: UserModel;
+  product: Product;
+  plan: PlanModel;
+  createdBy: UserModel;
+}
+
+/**
+ * Exact Subscription Schema (MongoDB/Mongoose):
+ * - customer: ObjectId referencing User (Required)
+ * - product: ObjectId referencing Product (Required)
+ * - plan: ObjectId referencing Plan (Required)
+ * - quotation: ObjectId referencing Quotation (Source quotation)
+ * - quantity: Number (Required)
+ * - startDate: Date (Required)
+ * - nextBillingDate: Date (Required)
+ * - status: String (active | paused | closed)
+ */
+export type Phase3SubscriptionStatus = 'active' | 'paused' | 'closed';
+
+export interface Phase3Subscription {
+  _id: string;
   customer: string;
   product: string;
   plan: string;
@@ -163,214 +246,73 @@ export interface CreateSubscriptionDTO {
   quantity: number;
   startDate: string;
   nextBillingDate: string;
-  status?: 'active' | 'paused' | 'closed';
-}
-
-export interface UpdateSubscriptionDTO {
-  status?: 'active' | 'paused' | 'closed';
-  nextBillingDate?: string;
-  startDate?: string;
-  quantity?: number;
-}
-
-/**
- * Invoices Collection Schema
- */
-export type InvoiceStatus = 'paid' | 'pending' | 'overdue' | 'draft' | 'void' | 'PAID' | 'PENDING' | 'OVERDUE' | 'DRAFT' | 'VOID';
-
-export interface Invoice {
-  _id?: string;
-  id?: string;
-  invoiceNumber: string;
-  customerId: string;
-  customerName?: string;
-  customerEmail?: string;
-  subscriptionId?: string;
-  amount: number;
-  tax?: number;
-  discount?: number;
-  total?: number;
-  status: InvoiceStatus;
-  issueDate?: string;
-  dueDate: string;
-  paidAt?: string;
+  status: Phase3SubscriptionStatus;
   createdAt?: string;
   updatedAt?: string;
 }
 
-/**
- * Payments Collection Schema
- * Notice status values: 'completed' | 'pending' | 'failed'
- */
-export type PaymentStatus = 'completed' | 'pending' | 'failed' | 'COMPLETED' | 'PENDING' | 'FAILED' | 'SUCCESS';
+export interface PopulatedSubscription extends Omit<Phase3Subscription, 'customer' | 'product' | 'plan' | 'quotation'> {
+  customer: UserModel;
+  product: Product;
+  plan: PlanModel;
+  quotation: PopulatedQuotation | Quotation;
+}
 
-export interface Payment {
-  _id?: string;
-  id?: string;
-  transactionId?: string;
-  invoiceId: string;
-  invoiceNumber?: string;
-  customerId: string;
-  customerName?: string;
+// ==================== PHASE 4 MONGOOSE SCHEMAS ====================
+
+/**
+ * Exact Invoice Schema (MongoDB/Mongoose):
+ * - customer: ObjectId referencing User
+ * - subscription: ObjectId referencing Subscription
+ * - amount: Number
+ * - dueDate: Date
+ * - status: String (draft | sent | paid | overdue)
+ * - generatedAt: Date
+ */
+export type Phase4InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+export interface Phase4Invoice {
+  _id: string;
+  customer: string; // ObjectId referencing User
+  subscription: string; // ObjectId referencing Subscription
   amount: number;
-  currency?: string;
-  paymentMethod: 'credit_card' | 'bank_transfer' | 'stripe' | 'paypal';
-  cardBrand?: string;
-  last4?: string;
+  dueDate: string;
+  status: Phase4InvoiceStatus;
+  generatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PopulatedPhase4Invoice extends Omit<Phase4Invoice, 'customer' | 'subscription'> {
+  customer: UserModel;
+  subscription: PopulatedSubscription | Phase3Subscription;
+}
+
+/**
+ * Exact Payment Schema (MongoDB/Mongoose):
+ * - invoice: ObjectId referencing Invoice
+ * - customer: ObjectId referencing User
+ * - amount: Number
+ * - paymentMethod: String (bank_transfer | card | cash | other)
+ * - paymentDate: Date
+ * - status: String (completed | pending)
+ */
+export type PaymentMethod = 'bank_transfer' | 'card' | 'cash' | 'other';
+export type PaymentStatus = 'completed' | 'pending';
+
+export interface PaymentModel {
+  _id: string;
+  invoice: string; // ObjectId referencing Invoice
+  customer: string; // ObjectId referencing User
+  amount: number;
+  paymentMethod: PaymentMethod;
+  paymentDate: string;
   status: PaymentStatus;
   createdAt?: string;
   updatedAt?: string;
-  date?: string;
 }
 
-/**
- * Customer representation (Users with role: 'customer')
- */
-export interface Customer {
-  _id?: string;
-  id?: string;
-  name: string;
-  email: string;
-  companyName?: string;
-  company?: string;
-  phone?: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'active' | 'inactive';
-  subscriptionsCount?: number;
-  totalSpent?: number;
-  joinedDate?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-/**
- * Quotations Collection Schema (Phase 3 Mongoose Schema)
- * Fields:
- * customer: ObjectId referencing User (Required)
- * product: ObjectId referencing Product (Required)
- * plan: ObjectId referencing Plan (Required)
- * quantity: Number (Required, minimum 1)
- * unitPrice: Number (Required)
- * totalAmount: Number (Stored snapshot)
- * status: String ('draft' | 'sent' | 'accepted' | 'rejected')
- * validUntil: Date (Optional)
- * createdBy: ObjectId referencing User (Staff/Admin)
- */
-export type QuotationStatus =
-  | 'draft'
-  | 'sent'
-  | 'accepted'
-  | 'rejected'
-  | 'pending'
-  | 'expired'
-  | 'DRAFT'
-  | 'SENT'
-  | 'ACCEPTED'
-  | 'REJECTED'
-  | 'PENDING'
-  | 'EXPIRED';
-
-export interface Quotation {
-  _id?: string;
-  id?: string;
-  quotationNumber?: string;
-  customer?: string | User | Customer | { _id: string; id?: string; name: string; email: string; companyName?: string; company?: string };
-  product?: string | Product | { _id: string; name: string; basePrice?: number };
-  plan?: string | Plan | { _id: string; name: string; price: number; billingCycle: PlanBillingCycle };
-  quantity: number;
-  unitPrice: number;
-  totalAmount: number;
-  status: QuotationStatus;
-  validUntil?: string;
-  createdBy?: string | User | { _id: string; id?: string; name: string; email: string };
-  createdAt?: string;
-  updatedAt?: string;
-
-  // Convenience fields for legacy references
-  customerId?: string;
-  customerName?: string;
-  proposedPlan?: string;
-}
-
-export interface CreateQuotationDTO {
-  customer: string;
-  product: string;
-  plan: string;
-  quantity: number;
-  unitPrice: number;
-  totalAmount: number;
-  status: 'draft' | 'sent';
-  validUntil?: string;
-  createdBy: string;
-}
-
-export interface UpdateQuotationDTO {
-  customer?: string;
-  product?: string;
-  plan?: string;
-  quantity?: number;
-  unitPrice?: number;
-  totalAmount?: number;
-  status?: 'draft' | 'sent' | 'accepted' | 'rejected';
-  validUntil?: string;
-}
-
-/**
- * Dashboard Metrics aggregating Collections
- */
-export interface DashboardMetrics {
-  totalCustomers: number;        // From Users collection (role: customer)
-  customersGrowth: number;
-  totalProducts: number;         // From Products collection
-  productsGrowth: number;
-  activeSubscriptions: number;   // From Subscriptions collection (status: active)
-  activeSubscriptionsGrowth: number;
-  totalInvoices: number;         // From Invoices collection
-  overdueInvoices: number;       // From Invoices collection (status: overdue)
-  overdueCount: number;
-  completedPayments: number;     // From Payments collection (status: completed)
-  revenueReceived: number;       // From Payments collection (sum of completed amount)
-  revenueGrowth: number;
-}
-
-export type DateFilterType = 'today' | 'week' | 'month' | 'year' | 'custom';
-
-export interface MonthlyRevenueData {
-  month: string;
-  mrr: number;
-  oneTime: number;
-  total: number;
-}
-
-export interface SubscriptionGrowthData {
-  period: string;
-  newSubs: number;
-  churned: number;
-  netActive: number;
-}
-
-export interface PaymentStatusDistribution {
-  name: string;
-  value: number;
-  percentage: number;
-  color: string;
-}
-
-export interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  type: 'info' | 'success' | 'warning' | 'error';
-}
-
-/**
- * Registration Form Payload matching Users collection
- */
-export interface RegisterPayload {
-  name: string;
-  email: string;
-  password?: string;
-  role?: UserRole;
-  companyName?: string;
+export interface PopulatedPaymentModel extends Omit<PaymentModel, 'invoice' | 'customer'> {
+  invoice: PopulatedPhase4Invoice | Phase4Invoice;
+  customer: UserModel;
 }

@@ -1,259 +1,192 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Package,
-  Layers,
-  FileSpreadsheet,
-  RefreshCw,
-  FileText,
-  Percent,
-  CreditCard,
-  Receipt,
-  BarChart3,
-  Users,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
+import { 
+  LayoutDashboard, 
+  CreditCard, 
+  Users, 
+  FileText, 
+  Layers, 
+  Zap, 
+  Package, 
+  FileSpreadsheet, 
+  Receipt, 
+  LogOut 
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { UserRole } from '../../types';
+import { useApp, AppView } from '../../context/AppContext';
+import { formatINR } from '../../utils/formatters';
 
-interface SidebarProps {
-  collapsed: boolean;
-  onToggleCollapse: () => void;
-  mobileOpen: boolean;
-  onCloseMobile: () => void;
-}
+export const Sidebar: React.FC = () => {
+  const { currentView, setCurrentView, subscriptions, invoices, metrics, currentUser, logout } = useApp();
 
-interface NavItemConfig {
-  path: string;
-  label: string;
-  icon: React.ElementType;
-  roles: string[];
-  badge?: string;
-}
+  const userRole = currentUser?.role || 'admin';
 
-export const NAV_ITEMS: NavItemConfig[] = [
-  {
-    path: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    roles: ['admin', 'staff', 'customer'],
-  },
-  {
-    path: '/customers',
-    label: 'Customers',
-    icon: Users,
-    roles: ['admin', 'staff'],
-    badge: '892',
-  },
-  {
-    path: '/products',
-    label: 'Products',
-    icon: Package,
-    roles: ['admin', 'staff'],
-    badge: '24',
-  },
-  {
-    path: '/plans',
-    label: 'Plans',
-    icon: Layers,
-    roles: ['admin', 'staff'],
-  },
-  {
-    path: '/quotations',
-    label: 'Quotations',
-    icon: FileSpreadsheet,
-    roles: ['admin', 'staff', 'customer'],
-  },
-  {
-    path: '/subscriptions',
-    label: 'Subscriptions',
-    icon: RefreshCw,
-    roles: ['admin', 'staff', 'customer'],
-    badge: '1.4k',
-  },
-  {
-    path: '/invoices',
-    label: 'Invoices',
-    icon: FileText,
-    roles: ['admin', 'staff', 'customer'],
-    badge: '5',
-  },
-  {
-    path: '/payments',
-    label: 'Payments',
-    icon: CreditCard,
-    roles: ['admin', 'staff', 'customer'],
-  },
-  {
-    path: '/settings',
-    label: 'Settings',
-    icon: Settings,
-    roles: ['admin', 'staff', 'customer'],
-  },
-];
+  // Calculate live badge counters
+  const pastDueSubsCount = subscriptions.filter(s => s.status === 'past_due').length;
+  const overdueInvoicesCount = invoices.filter(i => i.status === 'overdue').length;
 
-export const Sidebar: React.FC<SidebarProps> = ({
-  collapsed,
-  onToggleCollapse,
-  mobileOpen,
-  onCloseMobile,
-}) => {
-  const { role } = useAuth();
-  const normalizedRole = (role || 'admin').toLowerCase();
+  // Role-based navigation specification
+  let navItems: { 
+    id: AppView; 
+    label: string; 
+    icon: React.FC<{ className?: string }>; 
+    badge?: number; 
+    badgeColor?: string;
+  }[] = [];
 
-  const filteredNavItems = NAV_ITEMS.filter((item) =>
-    item.roles.map((r) => r.toLowerCase()).includes(normalizedRole)
-  );
+  if (userRole === 'admin') {
+    navItems = [
+      { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'products', label: 'Products & Plans', icon: Package },
+      { id: 'quotations', label: 'Quotations', icon: FileSpreadsheet },
+      { 
+        id: 'subscriptions', 
+        label: 'Subscriptions', 
+        icon: CreditCard, 
+        badge: pastDueSubsCount > 0 ? pastDueSubsCount : undefined,
+        badgeColor: 'bg-rose-500 text-white',
+      },
+      { 
+        id: 'invoices', 
+        label: 'Invoices', 
+        icon: FileText,
+        badge: overdueInvoicesCount > 0 ? overdueInvoicesCount : undefined,
+        badgeColor: 'bg-amber-500 text-white',
+      },
+      { id: 'payments', label: 'Payments', icon: Receipt },
+      { id: 'customers', label: 'Users', icon: Users },
+    ];
+  } else if (userRole === 'staff') {
+    navItems = [
+      { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'products', label: 'Products & Plans', icon: Package },
+      { id: 'quotations', label: 'Quotations', icon: FileSpreadsheet },
+      { 
+        id: 'subscriptions', 
+        label: 'Subscriptions', 
+        icon: CreditCard, 
+        badge: pastDueSubsCount > 0 ? pastDueSubsCount : undefined,
+        badgeColor: 'bg-rose-500 text-white',
+      },
+    ];
+  } else {
+    // Customer Role
+    navItems = [
+      { id: 'overview', label: 'My Dashboard', icon: LayoutDashboard },
+      { id: 'quotations', label: 'My Quotations', icon: FileSpreadsheet },
+      { id: 'subscriptions', label: 'My Subscriptions', icon: CreditCard },
+      { id: 'invoices', label: 'My Invoices', icon: FileText },
+      { id: 'payments', label: 'My Payments', icon: Receipt },
+    ];
+  }
 
-  const sidebarContent = (
-    <div className="flex flex-col h-full bg-white border-r border-slate-200 select-none">
+  const roleDisplayLabels: Record<string, string> = {
+    admin: 'Administrator',
+    staff: 'Staff',
+    customer: 'Customer',
+  };
+
+  return (
+    <aside className="w-64 shrink-0 flex flex-col border-r border-slate-800 bg-slate-900 text-slate-300 h-screen sticky top-0 z-40 select-none">
       {/* Brand Header */}
-      <div
-        className={`h-16 flex items-center border-b border-slate-200 px-4 transition-all duration-200 ${
-          collapsed ? 'justify-center' : 'justify-between'
-        }`}
-      >
-        <NavLink to="/dashboard" className="flex items-center gap-2.5 min-w-0" onClick={onCloseMobile}>
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm shadow-blue-500/20 shrink-0">
-            <span className="leading-none">B</span>
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-sm tracking-tight text-slate-900 truncate">
-                Brightloop
-              </span>
-              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-                Software
-              </span>
-            </div>
-          )}
-        </NavLink>
-
-        {/* Desktop Collapse Toggle */}
-        <button
-          onClick={onToggleCollapse}
-          className="hidden lg:flex p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+      <div className="h-16 flex items-center px-6 border-b border-slate-800/80 gap-3">
+        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm shadow-indigo-600/30">
+          <Zap className="w-4 h-4 fill-current text-white" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-sm font-bold tracking-tight text-white leading-none">
+            StackForge
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium tracking-wide mt-1">
+            Subscription Platform
+          </span>
+        </div>
       </div>
 
-      {/* Role Indicator Banner */}
-      {!collapsed && (
-        <div className="mx-3 mt-3 px-3 py-2 bg-slate-50 border border-slate-200/70 rounded-lg">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-            Current Workspace
-          </div>
-          <div className="text-xs font-semibold text-slate-800 flex items-center justify-between mt-0.5">
-            <span>{normalizedRole === 'admin' ? 'Admin Center' : normalizedRole === 'staff' ? 'Staff Portal' : 'Customer Account'}</span>
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-          </div>
+      {/* Navigation List */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <div className="px-3 pb-2 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Navigation
         </div>
-      )}
 
-      {/* Nav Items List */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-        {filteredNavItems.map((item) => {
+        {navItems.map(item => {
           const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={onCloseMobile}
-              className={({ isActive }) =>
-                `group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                } ${collapsed ? 'justify-center px-2' : ''}`
-              }
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-105" />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded font-semibold tabular-nums ${
-                        item.path === '/invoices'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </>
-              )}
+          // Match 'plans' with 'products' in active state when navigating Products & Plans
+          const isActive = currentView === item.id || (item.id === 'products' && currentView === 'plans');
 
-              {/* Tooltip on collapsed desktop view */}
-              {collapsed && (
-                <div className="hidden lg:group-hover:flex absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none items-center gap-1.5">
-                  {item.label}
-                  {item.badge && (
-                    <span className="text-[9px] bg-slate-700 px-1 py-0.2 rounded text-slate-200">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
+          return (
+            <button
+              key={item.id}
+              onClick={() => setCurrentView(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-lg transition-colors group cursor-pointer ${
+                isActive
+                  ? 'bg-indigo-600/20 text-indigo-400 font-semibold border border-indigo-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon
+                  className={`w-4 h-4 transition-colors ${
+                    isActive
+                      ? 'text-indigo-400'
+                      : 'text-slate-500 group-hover:text-slate-300'
+                  }`}
+                />
+                <span>{item.label}</span>
+              </div>
+
+              {item.badge !== undefined && (
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${item.badgeColor || 'bg-slate-800 text-slate-300'}`}>
+                  {item.badge}
+                </span>
               )}
-            </NavLink>
+            </button>
           );
         })}
       </nav>
 
-      {/* Footer Info Box */}
-      <div className="p-3 border-t border-slate-200">
-        {!collapsed ? (
-          <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-blue-900">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Phase 1 Frontend</span>
-            </div>
-            <p className="text-[11px] text-blue-700/80 mt-1 leading-snug">
-              Subscription Management UI ready for backend integration.
-            </p>
+      {/* Financial Health Mini Bar (Admin & Staff Only, with INR formatting) */}
+      {userRole !== 'customer' && (
+        <div className="p-3 mx-3 mb-3 rounded-xl border border-slate-800 bg-slate-850/60">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Active MRR</span>
+            <span className="text-[11px] text-emerald-400 font-medium">+14.8%</span>
           </div>
-        ) : (
-          <div className="flex justify-center text-blue-600" title="Phase 1 Ready">
-            <Sparkles className="w-4 h-4" />
+          <div className="text-sm font-bold text-white font-mono tabular-nums">
+            {formatINR(metrics?.mrr || 148250)}
           </div>
-        )}
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      {/* Desktop Sidebar */}
-      <aside
-        className={`hidden lg:block shrink-0 transition-all duration-200 h-screen sticky top-0 z-30 ${
-          collapsed ? 'w-[72px]' : 'w-64'
-        }`}
-      >
-        {sidebarContent}
-      </aside>
-
-      {/* Mobile Drawer Overlay */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-            onClick={onCloseMobile}
-            aria-hidden="true"
-          />
-          <div className="relative w-72 max-w-[80vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
-            {sidebarContent}
+          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <span>ARR Pace</span>
+            <span className="font-mono text-slate-300 font-medium">
+              {formatINR(metrics?.arr || 1780000)}
+            </span>
           </div>
         </div>
       )}
-    </>
+
+      {/* User / Workspace Footer */}
+      <div className="p-3 border-t border-slate-800 flex items-center justify-between gap-2 bg-slate-900/80">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">
+            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-semibold text-white truncate">
+              {currentUser?.name || 'Active User'}
+            </span>
+            <span className="text-[10px] text-slate-400 truncate capitalize">
+              {roleDisplayLabels[userRole] || 'User'}
+            </span>
+          </div>
+        </div>
+        
+        <button
+          onClick={() => logout()}
+          className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+          title="Sign Out"
+          aria-label="Sign Out"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+      </div>
+    </aside>
   );
 };
