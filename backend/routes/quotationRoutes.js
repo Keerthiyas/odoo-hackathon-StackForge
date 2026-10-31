@@ -1,5 +1,6 @@
 const express = require("express");
 const {
+  acceptQuotation,
   createQuotation,
   getQuotations,
   getQuotation,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.param("id", validateObjectId);
 
 router.route("/").post(createQuotation).get(getQuotations);
+router.patch("/:id/accept", acceptQuotation);
 router.patch("/:id/status", updateQuotationStatus);
 router
   .route("/:id")

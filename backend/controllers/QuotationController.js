@@ -1,4 +1,14 @@
 const quotationService = require("../services/quotationService");
+const subscriptionService = require("../services/subscriptionService");
+
+const acceptQuotation = async (req, res, next) => {
+  try {
+    const result = await subscriptionService.acceptQuotation(req.params.id);
+    return res.status(201).json(result);
+  } catch (error) {
+    return next(error);
+  }
+};
 
 const createQuotation = async (req, res, next) => {
   try {
@@ -61,6 +71,7 @@ const deleteQuotation = async (req, res, next) => {
 };
 
 module.exports = {
+  acceptQuotation,
   createQuotation,
   getQuotations,
   getQuotation,

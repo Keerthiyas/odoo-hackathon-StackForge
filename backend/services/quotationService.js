@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Quotation = require("../models/Quotation");
+const Subscription = require("../models/Subscription");
 const User = require("../models/User");
 const Product = require("../models/Product");
 const Plan = require("../models/Plan");
@@ -166,14 +167,30 @@ const getQuotation = async (id) => {
 
 const updateQuotation = async (id, body) => {
   const quotationData = getValidatedQuotation(body, true);
+  if (quotationData.status === "accepted") {
+    throw createError(409, "Use the quotation acceptance endpoint to accept a quotation");
+  }
   await validateReferences(quotationData);
 
-  const quotation = await Quotation.findByIdAndUpdate(id, quotationData, {
-    new: true,
-    runValidators: true,
-  });
-  if (!quotation) {
+  const currentQuotation = await Quotation.findById(id);
+  if (!currentQuotation) {
     throw createError(404, "Quotation not found");
+  }
+  if (currentQuotation.status === "accepted") {
+    throw createError(409, "Accepted quotations cannot be modified");
+  }
+
+  const quotation = await Quotation.findOneAndUpdate(
+    { _id: id, status: { $ne: "accepted" } },
+    quotationData,
+    { new: true, runValidators: true },
+  );
+  if (!quotation) {
+    const existingQuotation = await Quotation.findById(id);
+    if (!existingQuotation) {
+      throw createError(404, "Quotation not found");
+    }
+    throw createError(409, "Accepted quotations cannot be modified");
   }
   return quotation;
 };
@@ -193,21 +210,46 @@ const updateQuotationStatus = async (id, body) => {
       `status must be one of: ${quotationStatuses.join(", ")}`,
     );
   }
+  if (body.status === "accepted") {
+    throw createError(409, "Use the quotation acceptance endpoint to accept a quotation");
+  }
 
-  const quotation = await Quotation.findByIdAndUpdate(
-    id,
+  const currentQuotation = await Quotation.findById(id);
+  if (!currentQuotation) {
+    throw createError(404, "Quotation not found");
+  }
+  if (currentQuotation.status === "accepted") {
+    throw createError(409, "Accepted quotation status cannot be changed");
+  }
+  const quotation = await Quotation.findOneAndUpdate(
+    { _id: id, status: { $ne: "accepted" } },
     { status: body.status },
     { new: true, runValidators: true },
   );
   if (!quotation) {
-    throw createError(404, "Quotation not found");
+    const existingQuotation = await Quotation.findById(id);
+    if (!existingQuotation) {
+      throw createError(404, "Quotation not found");
+    }
+    throw createError(409, "Accepted quotation status cannot be changed");
   }
   return quotation;
 };
 
 const deleteQuotation = async (id) => {
-  const quotation = await Quotation.findByIdAndDelete(id);
+  const hasSubscription = await Subscription.exists({ quotation: id });
+  if (hasSubscription) {
+    throw createError(409, "Cannot delete a quotation with an associated subscription");
+  }
+  const quotation = await Quotation.findOneAndDelete({
+    _id: id,
+    status: { $ne: "accepted" },
+  });
   if (!quotation) {
+    const existingQuotation = await Quotation.findById(id);
+    if (existingQuotation) {
+      throw createError(409, "Accepted quotations cannot be deleted");
+    }
     throw createError(404, "Quotation not found");
   }
 };
