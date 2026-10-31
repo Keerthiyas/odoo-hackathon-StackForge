@@ -1,0 +1,6 @@
+{
+  "name": "Brightloop Software - Subscription Management System",
+  "description": "Enterprise Subscription Management System frontend with billing, customer lifecycles, analytics, invoices, and role-based access control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
