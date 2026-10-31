@@ -1,0 +1,13 @@
+{
+  "name": "stackforge-backend-seed",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "seed": "node seeds/seedData.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.7",
+    "mongoose": "^8.9.5"
+  }
+}
